@@ -1,9 +1,8 @@
 streamlit
+boto3
+scrapy
 langchain
 langchain-community
-langchain-huggingface
 langchain-cohere
-cohere
-boto3
+langchain-huggingface
 sentence-transformers
-toml
