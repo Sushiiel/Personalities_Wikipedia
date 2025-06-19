@@ -3,13 +3,8 @@ import scrapy
 import asyncio
 from scrapy.crawler import CrawlerRunner
 from scrapy.utils.log import configure_logging
-from twisted.internet import asyncioreactor
 
-# Set up the reactor only once
-try:
-    asyncioreactor.install()
-except Exception:
-    pass
+from twisted.internet.defer import ensureDeferred
 
 class WikiSpider(scrapy.Spider):
     name = "wiki_spider"
@@ -50,10 +45,13 @@ class WikiSpider(scrapy.Spider):
             f.write(clean_text)
         self.log(f"✅ Written to file: {file_name}")
 
-async def run_spider(person_name):
-    configure_logging()
-    runner = CrawlerRunner()
-    await runner.crawl(WikiSpider, person_name=person_name)
-
+# This runner reuses the Twisted event loop
+runner = None
 def run_scraper(person_name):
-    asyncio.run(run_spider(person_name))
+    global runner
+    if runner is None:
+        configure_logging()
+        runner = CrawlerRunner()
+
+    d = runner.crawl(WikiSpider, person_name=person_name)
+    return ensureDeferred(d)  # This will not restart the reactor
