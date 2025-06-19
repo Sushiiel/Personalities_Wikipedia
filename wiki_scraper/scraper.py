@@ -2,9 +2,13 @@
 import re
 import os
 from scrapy.crawler import CrawlerRunner
-from scrapy import Spider
-from twisted.internet import reactor, defer
 from scrapy.utils.log import configure_logging
+from twisted.internet import defer
+from twisted.internet import reactor
+from scrapy import Spider
+from crochet import setup, wait_for
+
+setup()  # ✅ initialize crochet to safely use reactor in Streamlit
 
 class WikiSpider(Spider):
     name = "wiki_spider"
@@ -47,16 +51,8 @@ class WikiSpider(Spider):
         self.log(f"✅ Written to file: {file_name}")
         print(f"✅ Done! Written to {file_name}")
 
-# async-compatible run_scraper
-@defer.inlineCallbacks
-def crawl_async(person_name):
+@wait_for(timeout=30.0)  # ⏳ wait up to 30 seconds for the crawl to finish
+def run_scraper(person_name):
     configure_logging()
     runner = CrawlerRunner(settings={"LOG_LEVEL": "ERROR"})
-    yield runner.crawl(WikiSpider, person_name=person_name)
-    reactor.stop()
-
-def run_scraper(person_name):
-    if reactor.running:
-        raise RuntimeError("Reactor already running.")
-    reactor.callWhenRunning(crawl_async, person_name)
-    reactor.run()
+    return runner.crawl(WikiSpider, person_name=person_name)
