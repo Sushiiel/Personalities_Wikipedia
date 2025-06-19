@@ -10,6 +10,8 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_cohere import ChatCohere
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
+from wiki_scraper.scraper import run_scraper
+import traceback
 
 # AWS S3 config
 S3_BUCKET = "wiki12"
@@ -22,7 +24,6 @@ def upload_to_s3(file_path, s3_key):
 def delete_from_s3(s3_key):
     s3_client.delete_object(Bucket=S3_BUCKET, Key=s3_key)
 
-# Vector DB setup
 vector_space_dir = os.path.join(os.getcwd(), "vector_db")
 os.makedirs(vector_space_dir, exist_ok=True)
 
@@ -36,12 +37,8 @@ if 'memory' not in st.session_state:
 if 'retriever' not in st.session_state:
     st.session_state['retriever'] = None
 
-# User input
 first_name = st.text_input("Enter First Name")
 last_name = st.text_input("Enter Last Name (optional)")
-
-# Run scraper
-from wiki_scraper.scraper import run_scraper  # Import scraper function
 
 if st.button("Fetch Wikipedia & Create Chatbot"):
     if not first_name:
@@ -69,9 +66,9 @@ if st.button("Fetch Wikipedia & Create Chatbot"):
                 else:
                     st.error("No content file found after scraping.")
             except Exception as e:
-                st.error(f"Scraper failed: {e}")
+                st.error("Scraper failed:")
+                st.exception(e)
 
-# Use Cohere API from Streamlit secrets
 os.environ["COHERE_API_KEY"] = st.secrets["COHERE_API_KEY"]
 llm = ChatCohere(model="command-r-plus", temperature=0)
 
