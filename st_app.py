@@ -3,7 +3,6 @@ import streamlit as st
 import os
 import shutil
 import boto3
-import asyncio
 from langchain.prompts import PromptTemplate
 from langchain_community.document_loaders import TextLoader
 from langchain_community.vectorstores import FAISS
@@ -54,7 +53,7 @@ if st.button("Fetch Wikipedia & Create Chatbot"):
         st.info(f"Scraping Wikipedia for: {person_name}")
         with st.spinner("Running Scraper..."):
             try:
-                run_scraper(person_name)
+                run_scraper(person_name)  # ✅ fixed: no asyncio or reactor.run
                 if os.path.exists(file_name):
                     loader = TextLoader(file_name, encoding="utf-8")
                     documents = loader.load()
