@@ -7,3 +7,4 @@ langchain-cohere
 langchain-huggingface
 sentence-transformers
 faiss-cpu
+cohere
