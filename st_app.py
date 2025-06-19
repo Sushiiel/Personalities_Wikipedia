@@ -53,7 +53,7 @@ if st.button("Fetch Wikipedia & Create Chatbot"):
         st.info(f"Scraping Wikipedia for: {person_name}")
         with st.spinner("Running Scraper..."):
             try:
-                run_scraper(person_name)  # ✅ fixed: no asyncio or reactor.run
+                run_scraper(person_name)
                 if os.path.exists(file_name):
                     loader = TextLoader(file_name, encoding="utf-8")
                     documents = loader.load()
