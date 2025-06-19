@@ -1,58 +1,49 @@
-# scraper.py
+# wiki_scraper/scraper.py
+import requests
+from bs4 import BeautifulSoup
 import re
 import os
-from scrapy.crawler import CrawlerRunner
-from scrapy.utils.log import configure_logging
-from twisted.internet import defer
-from twisted.internet import reactor
-from scrapy import Spider
-from crochet import setup, wait_for
 
-setup()  # ✅ initialize crochet to safely use reactor in Streamlit
+def run_scraper(person_name: str):
+    if not person_name:
+        raise ValueError("No person name provided")
 
-class WikiSpider(Spider):
-    name = "wiki_spider"
+    formatted_name = person_name.strip().replace(' ', '_')
+    url = f"https://en.wikipedia.org/wiki/{formatted_name}"
+    response = requests.get(url)
+    
+    if response.status_code != 200:
+        raise Exception("Failed to fetch Wikipedia page.")
 
-    def __init__(self, person_name=None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if not person_name:
-            raise ValueError("No name provided.")
-        self.person_name = person_name
-        formatted_name = person_name.strip().replace(' ', '_')
-        self.start_urls = [f"https://en.wikipedia.org/wiki/{formatted_name}"]
+    soup = BeautifulSoup(response.text, 'html.parser')
 
-    def parse(self, response):
-        content_div = response.css('div#mw-content-text')
-        paragraphs = content_div.css('p')
-        full_text = []
-        for para in paragraphs:
-            text = ''.join(para.xpath('.//text()').getall()).strip()
-            if text:
-                full_text.append(text)
-        clean_text = re.sub(r'\[\d+\]', '', ' '.join(full_text)).replace('\n', ' ')
+    # Extract paragraphs
+    content_div = soup.find('div', id='mw-content-text')
+    paragraphs = content_div.find_all('p') if content_div else []
+    full_text = " ".join(p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True))
 
-        infobox_data = []
-        infobox = response.css('table.infobox.vcard')
-        for row in infobox.css('tr'):
-            key = ''.join(row.css('th *::text, th::text').getall()).strip()
-            value = ''.join(row.css('td *::text, td::text').getall()).strip()
+    # Remove reference numbers like [1], [2]
+    clean_text = re.sub(r'\[\d+\]', '', full_text)
+
+    # Extract infobox data
+    infobox_text = ""
+    infobox = soup.find('table', class_='infobox')
+    if infobox:
+        rows = infobox.find_all('tr')
+        for row in rows:
+            key = row.find('th')
+            value = row.find('td')
             if key or value:
-                infobox_data.append(f"{key}: {value}" if key else value)
+                k = key.get_text(strip=True) if key else ""
+                v = value.get_text(strip=True) if value else ""
+                infobox_text += f"{k}: {v}\n"
 
-        infobox_text = '\n'.join(infobox_data)
-        file_name = f"{self.person_name.replace(' ', '_')}_output.txt"
-        with open(file_name, "w", encoding="utf-8") as f:
-            if infobox_text:
-                f.write("### INFOBOX DATA ###\n")
-                f.write(infobox_text + "\n\n")
-            f.write("### ARTICLE TEXT ###\n")
-            f.write(clean_text)
+    file_name = f"{formatted_name}_output.txt"
+    with open(file_name, "w", encoding="utf-8") as f:
+        if infobox_text:
+            f.write("### INFOBOX DATA ###\n")
+            f.write(infobox_text + "\n")
+        f.write("### ARTICLE TEXT ###\n")
+        f.write(clean_text)
 
-        self.log(f"✅ Written to file: {file_name}")
-        print(f"✅ Done! Written to {file_name}")
-
-@wait_for(timeout=30.0)  # ⏳ wait up to 30 seconds for the crawl to finish
-def run_scraper(person_name):
-    configure_logging()
-    runner = CrawlerRunner(settings={"LOG_LEVEL": "ERROR"})
-    return runner.crawl(WikiSpider, person_name=person_name)
+    print(f"✅ Done! Written to {file_name}")
