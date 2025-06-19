@@ -1,7 +1,15 @@
-# wiki_scraper/scraper.py
 import re
 import scrapy
-from scrapy.crawler import CrawlerProcess
+import asyncio
+from scrapy.crawler import CrawlerRunner
+from scrapy.utils.log import configure_logging
+from twisted.internet import asyncioreactor
+
+# Set up the reactor only once
+try:
+    asyncioreactor.install()
+except Exception:
+    pass
 
 class WikiSpider(scrapy.Spider):
     name = "wiki_spider"
@@ -42,7 +50,10 @@ class WikiSpider(scrapy.Spider):
             f.write(clean_text)
         self.log(f"✅ Written to file: {file_name}")
 
+async def run_spider(person_name):
+    configure_logging()
+    runner = CrawlerRunner()
+    await runner.crawl(WikiSpider, person_name=person_name)
+
 def run_scraper(person_name):
-    process = CrawlerProcess(settings={"LOG_LEVEL": "ERROR"})
-    process.crawl(WikiSpider, person_name=person_name)
-    process.start()
+    asyncio.run(run_spider(person_name))
