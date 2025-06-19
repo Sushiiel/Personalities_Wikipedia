@@ -8,4 +8,5 @@ langchain-huggingface
 sentence-transformers
 faiss-cpu
 cohere
-BeautifulSoup
+beautifulsoup4
+
