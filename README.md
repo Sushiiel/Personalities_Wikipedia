@@ -4,6 +4,8 @@ A Retrieval-Augmented Generation (RAG) chatbot that scrapes Wikipedia using Beau
 
 ---
 
+https://personalities-wikipedia.streamlit.app/
+
 ## 🔍 Features
 
 - ✅ Scrape live Wikipedia pages (infobox + article content)
@@ -28,6 +30,8 @@ A Retrieval-Augmented Generation (RAG) chatbot that scrapes Wikipedia using Beau
 | AWS S3        | Stores scraped text backup            |
 
 ---
+
+
 
 ## 🔧 Setup Instructions
 
