@@ -4,20 +4,20 @@ import os
 import shutil
 import boto3
 from langchain.prompts import PromptTemplate
-from langchain_community.document_loaders import TextLoader
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_cohere import ChatCohere
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
+from langchain.schema import Document
 
 # AWS S3 config
 S3_BUCKET = "wiki12"
 S3_REGION = "us-east-1"
 s3_client = boto3.client("s3", region_name=S3_REGION)
 
-def upload_to_s3(file_path, s3_key):
-    s3_client.upload_file(file_path, S3_BUCKET, s3_key)
+def upload_text_to_s3(text, s3_key):
+    s3_client.put_object(Bucket=S3_BUCKET, Key=s3_key, Body=text.encode("utf-8"))
 
 def delete_from_s3(s3_key):
     s3_client.delete_object(Bucket=S3_BUCKET, Key=s3_key)
@@ -41,33 +41,48 @@ first_name = st.text_input("Enter First Name")
 last_name = st.text_input("Enter Last Name (optional)")
 
 # Run scraper
-from wiki_scraper.scraper import run_scraper  # Import scraper function
+from wiki_scraper.scraper import run_scraper  # expects run_scraper(...) -> dict with "title" and "full_text"
 
 if st.button("Fetch Wikipedia & Create Chatbot"):
     if not first_name:
         st.warning("Please enter at least a first name.")
     else:
         person_name = f"{first_name} {last_name}".strip()
-        file_name = f"{person_name.replace(' ', '_')}_output.txt"
-
         st.info(f"Scraping Wikipedia for: {person_name}")
         with st.spinner("Running Scraper..."):
             try:
-                run_scraper(person_name)
-                if os.path.exists(file_name):
-                    loader = TextLoader(file_name, encoding="utf-8")
-                    documents = loader.load()
+                scraped = run_scraper(person_name)
+                full_text = scraped.get("full_text", "") if scraped else ""
+                title = scraped.get("title", person_name) if scraped else person_name
+
+                if not full_text:
+                    st.error("No content returned from scraper.")
+                else:
+                    # Create an in-memory LangChain Document
+                    doc = Document(page_content=full_text, metadata={"title": title, "source": f"wikipedia:{title}"})
+                    documents = [doc]
+
+                    # Build embeddings + FAISS index (in-memory)
                     embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
                     vectorstore = FAISS.from_documents(documents, embedding_model)
-                    vectorstore.save_local(vector_space_dir)
+                    # persist the index so subsequent runs can reuse it
+                    try:
+                        vectorstore.save_local(vector_space_dir)
+                    except Exception as e:
+                        st.warning(f"Failed to save FAISS index locally: {e}")
+
                     st.session_state['vectorstore'] = vectorstore
                     st.session_state['retriever'] = vectorstore.as_retriever(search_kwargs={"k": 10})
-                    upload_to_s3(file_name, file_name)
-                    st.session_state['s3_file_name'] = file_name
-                    os.remove(file_name)
-                    st.success("Wikipedia content loaded and chatbot initialized!")
-                else:
-                    st.error("No content file found after scraping.")
+
+                    # Optionally upload the scraped text to S3 (no local file)
+                    try:
+                        s3_key = f"{title.replace(' ', '_')}_output.txt"
+                        upload_text_to_s3(full_text, s3_key)
+                        st.session_state['s3_file_name'] = s3_key
+                        st.success("Wikipedia content loaded into chatbot and uploaded to S3.")
+                    except Exception as e:
+                        st.warning(f"Vectorstore created but failed to upload raw text to S3: {e}")
+                        st.success("Wikipedia content loaded into chatbot (S3 upload skipped).")
             except Exception as e:
                 st.error(f"Scraper failed: {e}")
 
